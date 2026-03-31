@@ -481,6 +481,48 @@ body{color:var(--text);font-family:'VT323',monospace;user-select:none;cursor:non
 /* SAKU mascot panel */
 :root{--pteal:#5ECFCD;--ppurple:#9B6FE8}
 #mm-wrap{bottom:30px;right:244px}
+
+/* SAKU Admin Modal */
+#admin-modal{position:fixed;inset:0;z-index:9800;background:rgba(2,0,10,.92);
+  display:none;align-items:center;justify-content:center;backdrop-filter:blur(10px)}
+#admin-modal.on{display:flex}
+.adm-box{background:rgba(2,0,10,.99);border:1px solid var(--pteal)55;
+  width:420px;max-width:92vw;padding:28px}
+.adm-title{font-family:'Press Start 2P',monospace;font-size:10px;
+  background:linear-gradient(90deg,var(--pteal),var(--sol));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;margin-bottom:6px;letter-spacing:2px}
+.adm-sub{font-size:13px;color:var(--muted);margin-bottom:20px;letter-spacing:1px}
+.adm-field-label{font-family:'Press Start 2P',monospace;font-size:6px;
+  color:var(--muted);letter-spacing:1px;margin-bottom:7px;display:block}
+.adm-input{width:100%;background:var(--bg3);border:1px solid var(--border);
+  padding:10px 12px;font-family:'VT323',monospace;font-size:16px;color:var(--text);
+  outline:none;margin-bottom:12px;letter-spacing:.5px}
+.adm-input:focus{border-color:var(--pteal)88}
+.adm-input::placeholder{color:var(--muted)}
+.adm-status{font-size:13px;min-height:18px;margin-bottom:12px;letter-spacing:.5px}
+.adm-ok{color:var(--green)}.adm-err{color:var(--red)}
+.adm-btns{display:flex;gap:8px}
+.adm-btn{flex:1;padding:10px;font-family:'Press Start 2P',monospace;font-size:7px;
+  background:transparent;border:1px solid var(--border);color:var(--muted);
+  cursor:pointer;transition:all .18s;letter-spacing:.5px}
+.adm-btn.save{border-color:var(--pteal)66;color:var(--pteal)}
+.adm-btn.save:hover{background:var(--pteal)12;box-shadow:0 0 14px var(--pteal)33}
+.adm-btn:hover{border-color:var(--red)55;color:var(--red)}
+
+/* Token address card in right panel */
+.token-card{background:linear-gradient(135deg,rgba(94,207,205,.08),rgba(153,69,255,.06));
+  border:1px solid var(--pteal)33;padding:10px 12px;margin-bottom:8px}
+.token-card-title{font-family:'Press Start 2P',monospace;font-size:6px;
+  color:var(--pteal);letter-spacing:1.5px;margin-bottom:7px;
+  display:flex;align-items:center;justify-content:space-between}
+.token-addr-display{font-size:11px;color:var(--muted);word-break:break-all;
+  padding:6px 8px;background:var(--bg3);border:1px solid var(--border);
+  cursor:pointer;letter-spacing:.3px;line-height:1.5;transition:color .18s}
+.token-addr-display:hover{color:var(--pteal)}
+.token-status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block;margin-right:5px}
+.token-status-dot.live{background:var(--green);box-shadow:0 0 5px var(--green);animation:blink 2s infinite}
+.token-status-dot.pending{background:var(--gold);box-shadow:0 0 5px var(--gold)}
 </style>
 </head>
 <body>
@@ -507,7 +549,7 @@ body{color:var(--text);font-family:'VT323',monospace;user-select:none;cursor:non
 <!-- HUD TOP -->
 <div id="hud-top">
   <div class="hud-logo">
-    <div class="hud-logo-main">SAKU</div>
+    <div class="hud-logo-main" onclick="sakuLogoClick()" style="cursor:pointer" title="...">SAKU</div>
     <div class="hud-logo-sub" style="font-size:9px;letter-spacing:1px;color:var(--muted)">powered by pixelandia</div>
   </div>
   <div id="feed-wrap"><div id="feed-inner"></div></div>
@@ -578,6 +620,22 @@ body{color:var(--text);font-family:'VT323',monospace;user-select:none;cursor:non
       </div>
     </div>
     <button id="disconnect-btn" onclick="disconnectWallet()">✕ DISCONNECT</button>
+  </div>
+  <div class="token-card" id="token-card-section">
+    <div class="token-card-title">
+      <span>🌸 SAKU TOKEN</span>
+      <span id="token-live-badge" style="display:flex;align-items:center;font-size:9px;color:var(--muted)">
+        <span class="token-status-dot pending"></span>PRE-LAUNCH
+      </span>
+    </div>
+    <div class="token-addr-display" id="token-addr-display"
+      onclick="copyTokenAddr()" title="Click to copy">
+      Paste contract after launch →
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:5px;display:flex;justify-content:space-between">
+      <span>pump.fun</span>
+      <span id="token-mc-display" style="color:var(--pteal)">—</span>
+    </div>
   </div>
   <div class="panel-section" id="positions-section">
     <div class="panel-label">POSITIONS</div>
@@ -769,6 +827,26 @@ body{color:var(--text);font-family:'VT323',monospace;user-select:none;cursor:non
 </div>
 
 <!-- LAUNCH BAR -->
+
+<!-- SAKU Admin Modal -->
+<div id="admin-modal" onclick="if(event.target===this)closeAdmin()">
+  <div class="adm-box">
+    <div class="adm-title">🌸 SAKU ADMIN</div>
+    <div class="adm-sub">Authorized wallet only · Contract management</div>
+    <label class="adm-field-label">AUTHORIZED WALLET</label>
+    <input class="adm-input" id="adm-wallet-check" readonly style="color:var(--pteal);font-size:13px">
+    <label class="adm-field-label">PUMP.FUN CONTRACT ADDRESS</label>
+    <input class="adm-input" id="adm-contract" placeholder="Paste contract address after launch...">
+    <label class="adm-field-label">TOKEN NAME (optional)</label>
+    <input class="adm-input" id="adm-token-name" placeholder="e.g. SAKU" maxlength="16">
+    <div class="adm-status" id="adm-status"></div>
+    <div class="adm-btns">
+      <button class="adm-btn save" onclick="adminSave()">💾 SAVE CONTRACT</button>
+      <button class="adm-btn" onclick="closeAdmin()">✕ CLOSE</button>
+    </div>
+  </div>
+</div>
+
 <div id="launch-bar" aria-hidden="true">
   <div id="lb-track">
     <span class="lbi" style="color:var(--pteal)">🌸 SAKU</span>
@@ -1824,6 +1902,8 @@ function _setPC(pid,cid,price,chg,decimals){
 }
 
 function _applyPriceUI(){
+  // Also refresh token MC if contract is set
+  if(SAKU_STORE.contract) fetchTokenMC(SAKU_STORE.contract);
   const p='$'+G.solPrice.toFixed(2),r=G.solChg>=0,col=r?'var(--green)':'var(--red)';
   const ce=document.getElementById('p-sol');if(ce)ce.textContent=p;
   const cc=document.getElementById('c-sol');if(cc){cc.textContent=(r?'+':'')+G.solChg.toFixed(2)+'%';cc.className='hp-chg '+(r?'up':'dn');}
@@ -2330,6 +2410,8 @@ async function boot(){
   document.getElementById('loader').classList.add('out');
   setTimeout(()=>{document.getElementById('loader').style.display='none';},800);
   requestAnimationFrame(loop);
+  // init token card from stored contract
+  updateTokenCard();
 }
 
 // ─── HELIUS WEBSOCKET (real Solana trades when wallet connected) ──
@@ -2419,6 +2501,105 @@ function showHelpToast(){
   showToast('WASD=MOVE · J=SWAP · C=CHAT · T=TXS · +/-=ZOOM','info',4000);
 }
 
+
+
+// ═══════════════════════════════════════════════════════════
+// SAKU ADMIN — contract management, authorized wallet only
+// ═══════════════════════════════════════════════════════════
+const OWNER_WALLET = '9Wwb9HJBTKPgwf13Czpndx9AZyZbkg15zLevRRyNs6fy';
+// Stored in localStorage (persists across sessions)
+const SAKU_STORE = {
+  get contract(){ return localStorage.getItem('saku_contract')||''; },
+  set contract(v){ localStorage.setItem('saku_contract',v); },
+  get tokenName(){ return localStorage.getItem('saku_token_name')||'SAKU'; },
+  set tokenName(v){ localStorage.setItem('saku_token_name',v); }
+};
+
+function isOwner(){
+  return G.wallet && G.wallet.toLowerCase()===OWNER_WALLET.toLowerCase();
+}
+
+function openAdmin(){
+  if(!G.connected){showToast('Connect wallet first','warn');return;}
+  if(!isOwner()){showToast('Unauthorized wallet','warn',3000);return;}
+  document.getElementById('adm-wallet-check').value=G.wallet;
+  document.getElementById('adm-contract').value=SAKU_STORE.contract;
+  document.getElementById('adm-token-name').value=SAKU_STORE.tokenName;
+  document.getElementById('adm-status').textContent='';
+  document.getElementById('admin-modal').classList.add('on');
+}
+
+function closeAdmin(){
+  document.getElementById('admin-modal').classList.remove('on');
+}
+
+function adminSave(){
+  const contract=document.getElementById('adm-contract').value.trim();
+  const name=document.getElementById('adm-token-name').value.trim()||'SAKU';
+  const status=document.getElementById('adm-status');
+  // Validate Solana address (32-44 base58 chars)
+  if(contract&&!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(contract)){
+    status.textContent='✗ Invalid Solana address format';
+    status.className='adm-status adm-err';return;
+  }
+  SAKU_STORE.contract=contract;
+  SAKU_STORE.tokenName=name;
+  updateTokenCard();
+  status.textContent='✓ Saved successfully!';
+  status.className='adm-status adm-ok';
+  showToast('Contract saved! 🌸','success',3000);
+  setTimeout(closeAdmin,1500);
+}
+
+function updateTokenCard(){
+  const addr=SAKU_STORE.contract;
+  const addrEl=document.getElementById('token-addr-display');
+  const badge=document.getElementById('token-live-badge');
+  const mc=document.getElementById('token-mc-display');
+  if(!addrEl)return;
+  if(addr){
+    const short=addr.slice(0,6)+'...'+addr.slice(-6);
+    addrEl.textContent=short;
+    addrEl.title='Click to copy: '+addr;
+    badge.innerHTML='<span class="token-status-dot live"></span>LIVE on pump.fun';
+    // Try to fetch real MC from pump.fun API
+    fetchTokenMC(addr);
+  }else{
+    addrEl.textContent='Paste contract after launch →';
+    badge.innerHTML='<span class="token-status-dot pending"></span>PRE-LAUNCH';
+    mc.textContent='—';
+  }
+}
+
+async function fetchTokenMC(addr){
+  try{
+    const r=await fetch(`https://frontend-api.pump.fun/coins/${addr}`,{signal:AbortSignal.timeout(5000)});
+    if(!r.ok)return;
+    const d=await r.json();
+    const mc=d.usd_market_cap||d.market_cap;
+    if(mc){
+      const el=document.getElementById('token-mc-display');
+      if(el)el.textContent='MC: '+fmtMC(mc);
+    }
+  }catch(e){}
+}
+
+function copyTokenAddr(){
+  const addr=SAKU_STORE.contract;
+  if(!addr){showToast('No contract set yet','info',2000);return;}
+  navigator.clipboard?.writeText(addr)
+    .then(()=>showToast('Contract address copied! 🌸','success',1800))
+    .catch(()=>showToast(addr,'info',5000));
+}
+
+// Secret trigger: triple-click on SAKU logo opens admin
+let _logoClicks=0,_logoTimer=null;
+function sakuLogoClick(){
+  _logoClicks++;
+  clearTimeout(_logoTimer);
+  _logoTimer=setTimeout(()=>{_logoClicks=0;},600);
+  if(_logoClicks>=3){_logoClicks=0;openAdmin();}
+}
 
 // ─── SAKU MASCOT ────────────────────────────────────────────────
 let _mascotVisible=true;
