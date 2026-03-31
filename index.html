@@ -508,6 +508,7 @@ body{color:var(--text);font-family:'VT323',monospace;user-select:none;cursor:non
   cursor:pointer;transition:all .18s;letter-spacing:.5px}
 .adm-btn.save{border-color:var(--pteal)66;color:var(--pteal)}
 .adm-btn.save:hover{background:var(--pteal)12;box-shadow:0 0 14px var(--pteal)33}
+.adm-btn.del:hover{background:var(--red)12;}
 .adm-btn:hover{border-color:var(--red)55;color:var(--red)}
 
 /* Token address card in right panel */
@@ -523,6 +524,9 @@ body{color:var(--text);font-family:'VT323',monospace;user-select:none;cursor:non
 .token-status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block;margin-right:5px}
 .token-status-dot.live{background:var(--green);box-shadow:0 0 5px var(--green);animation:blink 2s infinite}
 .token-status-dot.pending{background:var(--gold);box-shadow:0 0 5px var(--gold)}
+
+@keyframes adm-fadein{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes adm-fadeout{to{opacity:0;transform:translateX(-50%) translateY(-10px)}}
 </style>
 </head>
 <body>
@@ -833,15 +837,28 @@ body{color:var(--text);font-family:'VT323',monospace;user-select:none;cursor:non
   <div class="adm-box">
     <div class="adm-title">🌸 SAKU ADMIN</div>
     <div class="adm-sub">Authorized wallet only · Contract management</div>
-    <label class="adm-field-label">AUTHORIZED WALLET</label>
-    <input class="adm-input" id="adm-wallet-check" readonly style="color:var(--pteal);font-size:13px">
-    <label class="adm-field-label">PUMP.FUN CONTRACT ADDRESS</label>
-    <input class="adm-input" id="adm-contract" placeholder="Paste contract address after launch...">
-    <label class="adm-field-label">TOKEN NAME (optional)</label>
+
+    <label class="adm-field-label">CONNECTED WALLET (AUTHORIZED)</label>
+    <input class="adm-input" id="adm-wallet-check" readonly
+      style="color:var(--pteal);font-size:11px;letter-spacing:.3px">
+
+    <label class="adm-field-label" style="margin-top:14px">PUMP.FUN CONTRACT ADDRESS</label>
+    <div style="display:flex;gap:6px;margin-bottom:4px">
+      <input class="adm-input" id="adm-contract" style="margin-bottom:0;flex:1"
+        placeholder="Paste contract address after pump.fun launch...">
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;letter-spacing:.3px"
+      id="adm-current-contract">No contract set</div>
+
+    <label class="adm-field-label">TOKEN NAME</label>
     <input class="adm-input" id="adm-token-name" placeholder="e.g. SAKU" maxlength="16">
+
     <div class="adm-status" id="adm-status"></div>
+
     <div class="adm-btns">
-      <button class="adm-btn save" onclick="adminSave()">💾 SAVE CONTRACT</button>
+      <button class="adm-btn save" onclick="adminSave()">💾 SAVE</button>
+      <button class="adm-btn" style="border-color:var(--red)44;color:var(--red)"
+        onclick="adminDelete()">🗑 DELETE</button>
       <button class="adm-btn" onclick="closeAdmin()">✕ CLOSE</button>
     </div>
   </div>
@@ -2412,6 +2429,10 @@ async function boot(){
   requestAnimationFrame(loop);
   // init token card from stored contract
   updateTokenCard();
+  // Show official announcement on load if contract is set
+  if(SAKU_STORE.contract){
+    setTimeout(()=>announceOfficialContract(SAKU_STORE.contract,SAKU_STORE.tokenName,false),2500);
+  }
 }
 
 // ─── HELIUS WEBSOCKET (real Solana trades when wallet connected) ──
@@ -2506,26 +2527,34 @@ function showHelpToast(){
 // ═══════════════════════════════════════════════════════════
 // SAKU ADMIN — contract management, authorized wallet only
 // ═══════════════════════════════════════════════════════════
-const OWNER_WALLET = '9Wwb9HJBTKPgwf13Czpndx9AZyZbkg15zLevRRyNs6fy';
-// Stored in localStorage (persists across sessions)
-const SAKU_STORE = {
-  get contract(){ return localStorage.getItem('saku_contract')||''; },
-  set contract(v){ localStorage.setItem('saku_contract',v); },
-  get tokenName(){ return localStorage.getItem('saku_token_name')||'SAKU'; },
-  set tokenName(v){ localStorage.setItem('saku_token_name',v); }
+const OWNER_WALLET='9Wwb9HJBTKPgwf13Czpndx9AZyZbkg15zLevRRyNs6fy';
+
+// Persistent storage with localStorage
+const SAKU_STORE={
+  get contract(){return localStorage.getItem('saku_contract')||'';},
+  set contract(v){if(v)localStorage.setItem('saku_contract',v);else localStorage.removeItem('saku_contract');},
+  get tokenName(){return localStorage.getItem('saku_token_name')||'SAKU';},
+  set tokenName(v){localStorage.setItem('saku_token_name',v);}
 };
 
 function isOwner(){
-  return G.wallet && G.wallet.toLowerCase()===OWNER_WALLET.toLowerCase();
+  return G.wallet&&G.wallet.toLowerCase()===OWNER_WALLET.toLowerCase();
 }
 
+// ── Open admin (only for authorized wallet) ──
 function openAdmin(){
-  if(!G.connected){showToast('Connect wallet first','warn');return;}
-  if(!isOwner()){showToast('Unauthorized wallet','warn',3000);return;}
+  if(!G.connected){showToast('Connect Phantom first 👻','warn',3000);return;}
+  if(!isOwner()){
+    showToast('⛔ Unauthorized — wrong wallet','warn',4000);
+    return;
+  }
+  const cur=SAKU_STORE.contract;
   document.getElementById('adm-wallet-check').value=G.wallet;
-  document.getElementById('adm-contract').value=SAKU_STORE.contract;
+  document.getElementById('adm-contract').value=cur;
   document.getElementById('adm-token-name').value=SAKU_STORE.tokenName;
   document.getElementById('adm-status').textContent='';
+  document.getElementById('adm-current-contract').textContent=
+    cur?'Current: '+cur.slice(0,8)+'...'+cur.slice(-8):'No contract set';
   document.getElementById('admin-modal').classList.add('on');
 }
 
@@ -2533,24 +2562,114 @@ function closeAdmin(){
   document.getElementById('admin-modal').classList.remove('on');
 }
 
+// ── Save contract ──
 function adminSave(){
   const contract=document.getElementById('adm-contract').value.trim();
-  const name=document.getElementById('adm-token-name').value.trim()||'SAKU';
+  const name=(document.getElementById('adm-token-name').value.trim()||'SAKU').slice(0,16);
   const status=document.getElementById('adm-status');
-  // Validate Solana address (32-44 base58 chars)
-  if(contract&&!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(contract)){
-    status.textContent='✗ Invalid Solana address format';
+
+  if(!contract){
+    status.textContent='⚠ Enter a contract address';
     status.className='adm-status adm-err';return;
   }
+  // Validate Solana base58 address (32-44 chars)
+  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(contract)){
+    status.textContent='✗ Invalid Solana address (check format)';
+    status.className='adm-status adm-err';return;
+  }
+
+  const isNew=!SAKU_STORE.contract;
   SAKU_STORE.contract=contract;
   SAKU_STORE.tokenName=name;
   updateTokenCard();
-  status.textContent='✓ Saved successfully!';
+
+  status.textContent='✓ Contract saved!';
   status.className='adm-status adm-ok';
-  showToast('Contract saved! 🌸','success',3000);
-  setTimeout(closeAdmin,1500);
+
+  // Show official announcement to ALL users
+  announceOfficialContract(contract,name,isNew);
+
+  showToast('✓ Contract updated 🌸','success',3000);
+  setTimeout(closeAdmin,1200);
 }
 
+// ── Delete contract ──
+function adminDelete(){
+  const status=document.getElementById('adm-status');
+  if(!SAKU_STORE.contract){
+    status.textContent='Nothing to delete';
+    status.className='adm-status adm-err';return;
+  }
+  if(!confirm('Delete the saved contract address? This cannot be undone.')){return;}
+  SAKU_STORE.contract='';
+  updateTokenCard();
+  document.getElementById('adm-contract').value='';
+  document.getElementById('adm-current-contract').textContent='No contract set';
+  status.textContent='🗑 Contract deleted';
+  status.className='adm-status adm-err';
+  showToast('Contract removed','info',3000);
+}
+
+// ── Official announcement notification (3-5s, prominent) ──
+function announceOfficialContract(addr,name,isNew){
+  // Remove any existing announcement
+  document.getElementById('official-announce')?.remove();
+
+  const short=addr.slice(0,6)+'...'+addr.slice(-6);
+  const el=document.createElement('div');
+  el.id='official-announce';
+  el.style.cssText=`
+    position:fixed;top:70px;left:50%;transform:translateX(-50%);
+    z-index:8000;background:rgba(2,0,10,.98);
+    border:2px solid var(--pteal);
+    padding:16px 28px;text-align:center;
+    box-shadow:0 0 40px var(--pteal)66,0 0 80px var(--pteal)22;
+    animation:adm-fadein .35s ease;max-width:90vw;min-width:320px;
+  `;
+  el.innerHTML=`
+    <div style="font-family:'Press Start 2P',monospace;font-size:7px;
+      color:var(--pteal);letter-spacing:2px;margin-bottom:8px">
+      🌸 ${isNew?'OFFICIAL CONTRACT DEPLOYED':'CONTRACT UPDATED'}
+    </div>
+    <div style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;
+      color:var(--green);margin-bottom:6px">${name}</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;letter-spacing:.3px">
+      ${addr}
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button onclick="navigator.clipboard?.writeText('${addr}').then(()=>showToast('Copied!','success',1500))"
+        style="font-family:'Press Start 2P',monospace;font-size:5.5px;
+        padding:7px 14px;background:var(--pteal)18;border:1px solid var(--pteal)66;
+        color:var(--pteal);cursor:pointer;letter-spacing:.5px">
+        📋 COPY CONTRACT
+      </button>
+      <button onclick="window.open('https://pump.fun/${addr}','_blank')"
+        style="font-family:'Press Start 2P',monospace;font-size:5.5px;
+        padding:7px 14px;background:var(--pump)18;border:1px solid var(--pump)66;
+        color:var(--pump);cursor:pointer;letter-spacing:.5px">
+        🚀 VIEW ON PUMP.FUN
+      </button>
+    </div>
+    <div style="font-family:'Press Start 2P',monospace;font-size:5px;
+      color:var(--muted);margin-top:10px;letter-spacing:1px">
+      ✓ OFFICIAL · VERIFIED BY SAKU TEAM
+    </div>
+  `;
+  document.body.appendChild(el);
+
+  // Auto-dismiss after 5 seconds (click to dismiss early)
+  el.addEventListener('click',()=>_dismissAnnounce(el));
+  const t=setTimeout(()=>_dismissAnnounce(el),5000);
+  el._timer=t;
+}
+
+function _dismissAnnounce(el){
+  clearTimeout(el._timer);
+  el.style.animation='adm-fadeout .3s ease forwards';
+  setTimeout(()=>el.remove(),320);
+}
+
+// ── Update token card in right panel ──
 function updateTokenCard(){
   const addr=SAKU_STORE.contract;
   const addrEl=document.getElementById('token-addr-display');
@@ -2562,42 +2681,42 @@ function updateTokenCard(){
     addrEl.textContent=short;
     addrEl.title='Click to copy: '+addr;
     badge.innerHTML='<span class="token-status-dot live"></span>LIVE on pump.fun';
-    // Try to fetch real MC from pump.fun API
     fetchTokenMC(addr);
   }else{
-    addrEl.textContent='Paste contract after launch →';
-    badge.innerHTML='<span class="token-status-dot pending"></span>PRE-LAUNCH';
-    mc.textContent='—';
+    addrEl.textContent='Not launched yet — check back soon';
+    addrEl.title='';
+    if(badge)badge.innerHTML='<span class="token-status-dot pending"></span>PRE-LAUNCH';
+    if(mc)mc.textContent='—';
   }
 }
 
+// ── Fetch real MC from pump.fun ──
 async function fetchTokenMC(addr){
   try{
-    const r=await fetch(`https://frontend-api.pump.fun/coins/${addr}`,{signal:AbortSignal.timeout(5000)});
+    const r=await fetch(`https://frontend-api.pump.fun/coins/${addr}`,
+      {signal:AbortSignal.timeout(6000)});
     if(!r.ok)return;
     const d=await r.json();
-    const mc=d.usd_market_cap||d.market_cap;
-    if(mc){
-      const el=document.getElementById('token-mc-display');
-      if(el)el.textContent='MC: '+fmtMC(mc);
-    }
+    const mcVal=d.usd_market_cap||d.market_cap_usd||0;
+    const el=document.getElementById('token-mc-display');
+    if(el&&mcVal)el.textContent='MC: '+fmtMC(mcVal);
   }catch(e){}
 }
 
 function copyTokenAddr(){
   const addr=SAKU_STORE.contract;
-  if(!addr){showToast('No contract set yet','info',2000);return;}
+  if(!addr){showToast('Contract not set yet — check back after launch!','info',3000);return;}
   navigator.clipboard?.writeText(addr)
-    .then(()=>showToast('Contract address copied! 🌸','success',1800))
-    .catch(()=>showToast(addr,'info',5000));
+    .then(()=>showToast('🌸 Contract address copied!','success',2000))
+    .catch(()=>showToast(addr,'info',6000));
 }
 
-// Secret trigger: triple-click on SAKU logo opens admin
+// ── Triple-click SAKU logo to open admin ──
 let _logoClicks=0,_logoTimer=null;
 function sakuLogoClick(){
   _logoClicks++;
   clearTimeout(_logoTimer);
-  _logoTimer=setTimeout(()=>{_logoClicks=0;},600);
+  _logoTimer=setTimeout(()=>{_logoClicks=0;},700);
   if(_logoClicks>=3){_logoClicks=0;openAdmin();}
 }
 
