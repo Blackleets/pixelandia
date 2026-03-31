@@ -1833,6 +1833,7 @@ function finalizeConnect(){
   nb.textContent=G.walletProvider==='demo'?'DEMO':'MAINNET';
   createMyPlayer();updateWalletPanel();updatePositions();updateOnlineCount();
   document.getElementById('disconnect-btn').style.display='block';
+  updateTokenCard();
   addFeed({type:'launch',wallet:G.walletLabel,token:'ENTERED WORLD',amtUsd:'👋',amtSol:''});
   startHeliusWS(); // start real Solana trade stream
   addChatMsg('SYSTEM','Welcome to SAKU, '+G.walletLabel+'! 🌸','system');
@@ -2730,7 +2731,7 @@ function updateTokenCard(){
     addrEl.title='Click to copy full address';
     if(badge)badge.innerHTML='<span class="token-status-dot live"></span>LIVE on pump.fun';
     if(pumpLink){pumpLink.href='https://pump.fun/'+addr;}
-    if(editBtn&&isOwner())editBtn.style.display='inline-block';
+    if(editBtn)editBtn.style.display=isOwner()?'inline-block':'none';
     fetchTokenMC(addr);
   }else{
     addrEl.textContent='Not launched yet — check back soon';
@@ -2738,9 +2739,8 @@ function updateTokenCard(){
     if(badge)badge.innerHTML='<span class="token-status-dot pending"></span>PRE-LAUNCH';
     if(mc)mc.textContent='—';
     if(pumpLink){pumpLink.href='https://pump.fun';}
-    if(editBtn&&isOwner())editBtn.style.display='inline-block';
+    if(editBtn)editBtn.style.display=isOwner()?'inline-block':'none';
   }
-  // Edit button always visible — auth check happens on save
 }
 
 // ── Inline paste (appears directly in the card) ──
@@ -2753,7 +2753,7 @@ function showInlinePaste(){
   inp.value=SAKU_STORE.contract||'';
   if(statusEl)statusEl.textContent='';
   if(delBtn)delBtn.style.display=SAKU_STORE.contract?'inline-block':'none';
-  row.style.display='flex';
+  row.style.cssText='display:flex;margin-top:6px;gap:5px;flex-direction:column';
   setTimeout(()=>{inp.focus();if(inp.value)inp.select();},50);
 }
 function hideInlinePaste(){
@@ -2800,18 +2800,21 @@ function inlineDeleteContract(){
 
 // ── Fetch real MC from pump.fun ──
 async function fetchTokenMC(addr){
+  if(!addr)return;
   try{
     const r=await fetch(`https://frontend-api.pump.fun/coins/${addr}`,
-      {signal:AbortSignal.timeout(6000)});
+      {signal:AbortSignal.timeout(7000),headers:{'Accept':'application/json'}});
     if(!r.ok)return;
     const d=await r.json();
-    const mcVal=d.usd_market_cap||d.market_cap_usd||d.market_cap||0;
+    const mcVal=d.usd_market_cap||d.market_cap_usd||d.market_cap||d.virtual_sol_reserves||0;
     const el=document.getElementById('token-mc-display');
-    if(el&&mcVal)el.textContent='MC '+fmtMC(mcVal);
-    // Update token name from real data if available
-    if(d.symbol&&d.symbol!==SAKU_STORE.tokenName){
-      // Don't overwrite user-set name
-    }
+    if(el&&mcVal>0)el.textContent='MC '+fmtMC(mcVal);
+    // Update pump.fun link with real address
+    const lnk=document.getElementById('pumpfun-link');
+    if(lnk)lnk.href='https://pump.fun/'+addr;
+    // Update badge to LIVE if data came back
+    const badge=document.getElementById('token-live-badge');
+    if(badge&&d.mint)badge.innerHTML='<span class="token-status-dot live"></span>LIVE';
   }catch(e){}
 }
 
