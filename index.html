@@ -632,13 +632,57 @@ body{color:var(--text);font-family:'VT323',monospace;user-select:none;cursor:non
         <span class="token-status-dot pending"></span>PRE-LAUNCH
       </span>
     </div>
-    <div class="token-addr-display" id="token-addr-display"
-      onclick="copyTokenAddr()" title="Click to copy">
-      Paste contract after launch →
+    <!-- Address display (read mode) -->
+    <div id="token-addr-display" onclick="copyTokenAddr()"
+      style="font-size:11px;color:var(--muted);word-break:break-all;
+      padding:7px 9px;background:var(--bg3);border:1px solid var(--border);
+      cursor:pointer;letter-spacing:.3px;line-height:1.6;transition:color .18s;
+      display:block"
+      onmouseover="this.style.color='var(--pteal)'"
+      onmouseout="this.style.color='var(--muted)'">
+      Not launched yet — check back soon
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-top:5px;display:flex;justify-content:space-between">
-      <span>pump.fun</span>
-      <span id="token-mc-display" style="color:var(--pteal)">—</span>
+    <!-- Inline paste input (hidden until admin) -->
+    <div id="token-paste-row" style="display:none;margin-top:6px;gap:5px;flex-direction:column">
+      <input id="token-inline-input" placeholder="Paste contract address..."
+        style="width:100%;background:var(--bg3);border:1px solid var(--pteal)66;
+        padding:7px 9px;font-family:'VT323',monospace;font-size:14px;
+        color:var(--text);outline:none;box-sizing:border-box;letter-spacing:.3px"
+        onkeydown="if(event.key==='Enter')inlineSaveContract();if(event.key==='Escape')hideInlinePaste();">
+      <div style="display:flex;gap:5px">
+        <button onclick="inlineSaveContract()"
+          style="flex:1;padding:6px;font-family:'Press Start 2P',monospace;font-size:5.5px;
+          background:var(--pteal)18;border:1px solid var(--pteal)66;color:var(--pteal);
+          cursor:pointer;letter-spacing:.5px">💾 SAVE</button>
+        <button onclick="inlineDeleteContract()" id="token-delete-btn"
+          style="padding:6px 10px;font-family:'Press Start 2P',monospace;font-size:5.5px;
+          background:var(--red)11;border:1px solid var(--red)44;color:var(--red);
+          cursor:pointer">🗑</button>
+        <button onclick="hideInlinePaste()"
+          style="padding:6px 10px;font-family:'Press Start 2P',monospace;font-size:5.5px;
+          background:transparent;border:1px solid var(--border);color:var(--muted);
+          cursor:pointer">✕</button>
+      </div>
+      <div id="token-inline-status" style="font-size:12px;min-height:14px"></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:5px;
+      display:flex;justify-content:space-between;align-items:center">
+      <span>
+        <a id="pumpfun-link" href="#" target="_blank"
+          style="color:var(--muted);text-decoration:none;transition:color .18s"
+          onmouseover="this.style.color='var(--pump)'"
+          onmouseout="this.style.color='var(--muted)'">pump.fun ↗</a>
+      </span>
+      <span style="display:flex;align-items:center;gap:6px">
+        <span id="token-mc-display" style="color:var(--pteal)">—</span>
+        <button id="token-edit-btn" onclick="showInlinePaste()"
+          style="display:inline-block;font-family:'Press Start 2P',monospace;font-size:5px;
+          padding:3px 7px;background:transparent;border:1px solid var(--border);
+          color:var(--muted);cursor:pointer;letter-spacing:.5px;transition:all .18s"
+          onmouseover="this.style.borderColor='var(--pteal)';this.style.color='var(--pteal)'"
+          onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"
+          title="Edit contract (owner only)">✏ EDIT</button>
+      </span>
     </div>
   </div>
   <div class="panel-section" id="positions-section">
@@ -1792,6 +1836,7 @@ function finalizeConnect(){
   addFeed({type:'launch',wallet:G.walletLabel,token:'ENTERED WORLD',amtUsd:'👋',amtSol:''});
   startHeliusWS(); // start real Solana trade stream
   addChatMsg('SYSTEM','Welcome to SAKU, '+G.walletLabel+'! 🌸','system');
+  updateTokenCard(); // refresh edit button visibility
   // auto-reconnect listener
   if(G.walletProvider&&G.walletProvider!=='demo'&&G.walletProvider.on){
     G.walletProvider.on('disconnect',()=>disconnectWallet());
@@ -1895,7 +1940,7 @@ function createMyPlayer(){
 async function fetchPrices(){
   try{
     const res=await fetch(
-      'https://api.coingecko.com/api/v3/simple/price?ids=solana,bonk,jupiter-exchange-solana&vs_currencies=usd&include_24hr_change=true',
+      'https://api.coingecko.com/api/v3/simple/price?ids=solana,bonk,jupiter-exchange-solana&vs_currencies=usd&include_24hr_change=true&precision=4',
       {signal:AbortSignal.timeout(7000)}
     );
     if(!res.ok)throw 0;
@@ -2675,19 +2720,82 @@ function updateTokenCard(){
   const addrEl=document.getElementById('token-addr-display');
   const badge=document.getElementById('token-live-badge');
   const mc=document.getElementById('token-mc-display');
+  const editBtn=document.getElementById('token-edit-btn');
+  const pumpLink=document.getElementById('pumpfun-link');
   if(!addrEl)return;
   if(addr){
-    const short=addr.slice(0,6)+'...'+addr.slice(-6);
+    // Show shortened address, full on hover
+    const short=addr.slice(0,8)+'...'+addr.slice(-8);
     addrEl.textContent=short;
-    addrEl.title='Click to copy: '+addr;
-    badge.innerHTML='<span class="token-status-dot live"></span>LIVE on pump.fun';
+    addrEl.title='Click to copy full address';
+    if(badge)badge.innerHTML='<span class="token-status-dot live"></span>LIVE on pump.fun';
+    if(pumpLink){pumpLink.href='https://pump.fun/'+addr;}
+    if(editBtn&&isOwner())editBtn.style.display='inline-block';
     fetchTokenMC(addr);
   }else{
     addrEl.textContent='Not launched yet — check back soon';
     addrEl.title='';
     if(badge)badge.innerHTML='<span class="token-status-dot pending"></span>PRE-LAUNCH';
     if(mc)mc.textContent='—';
+    if(pumpLink){pumpLink.href='https://pump.fun';}
+    if(editBtn&&isOwner())editBtn.style.display='inline-block';
   }
+  // Edit button always visible — auth check happens on save
+}
+
+// ── Inline paste (appears directly in the card) ──
+function showInlinePaste(){
+  const row=document.getElementById('token-paste-row');
+  const inp=document.getElementById('token-inline-input');
+  const delBtn=document.getElementById('token-delete-btn');
+  const statusEl=document.getElementById('token-inline-status');
+  if(!row)return;
+  inp.value=SAKU_STORE.contract||'';
+  if(statusEl)statusEl.textContent='';
+  if(delBtn)delBtn.style.display=SAKU_STORE.contract?'inline-block':'none';
+  row.style.display='flex';
+  setTimeout(()=>{inp.focus();if(inp.value)inp.select();},50);
+}
+function hideInlinePaste(){
+  const row=document.getElementById('token-paste-row');
+  if(row)row.style.display='none';
+}
+function inlineSaveContract(){
+  const inp=document.getElementById('token-inline-input');
+  const status=document.getElementById('token-inline-status');
+  const contract=(inp?.value||'').trim();
+  // Auth check on save
+  if(!G.connected){
+    if(status){status.textContent='Connect Phantom first';status.style.color='var(--red)';}
+    return;
+  }
+  if(!isOwner()){
+    if(status){status.textContent='⛔ Authorized wallet only';status.style.color='var(--red)';}
+    return;
+  }
+  if(!contract){
+    if(status){status.textContent='⚠ Paste a contract address';status.style.color='var(--red)';}
+    return;
+  }
+  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(contract)){
+    if(status){status.textContent='✗ Invalid Solana address format';status.style.color='var(--red)';}
+    return;
+  }
+  const isNew=!SAKU_STORE.contract;
+  SAKU_STORE.contract=contract;
+  const tname=SAKU_STORE.tokenName||'SAKU';
+  updateTokenCard();
+  hideInlinePaste();
+  announceOfficialContract(contract,tname,isNew);
+  showToast('✓ Contract saved! 🌸','success',3000);
+}
+function inlineDeleteContract(){
+  if(!G.connected||!isOwner()){showToast('⛔ Authorized wallet only','warn',3000);return;}
+  if(!confirm('Delete the saved contract? This cannot be undone.'))return;
+  SAKU_STORE.contract='';
+  updateTokenCard();
+  hideInlinePaste();
+  showToast('Contract removed','info',2500);
 }
 
 // ── Fetch real MC from pump.fun ──
@@ -2697,9 +2805,13 @@ async function fetchTokenMC(addr){
       {signal:AbortSignal.timeout(6000)});
     if(!r.ok)return;
     const d=await r.json();
-    const mcVal=d.usd_market_cap||d.market_cap_usd||0;
+    const mcVal=d.usd_market_cap||d.market_cap_usd||d.market_cap||0;
     const el=document.getElementById('token-mc-display');
-    if(el&&mcVal)el.textContent='MC: '+fmtMC(mcVal);
+    if(el&&mcVal)el.textContent='MC '+fmtMC(mcVal);
+    // Update token name from real data if available
+    if(d.symbol&&d.symbol!==SAKU_STORE.tokenName){
+      // Don't overwrite user-set name
+    }
   }catch(e){}
 }
 
